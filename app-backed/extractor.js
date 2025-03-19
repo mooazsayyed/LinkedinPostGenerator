@@ -9,8 +9,6 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require("axios");
 
-// const DEEPSEEK_API_KEY = 'ddc-P9P28r6EdjrpqqwRfeXIHYDdcbGViAqhbGNgLzYXLhVxwewQoI'; // Replace with your actual API key
-// const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'; // Replace with the actual API endpoint
 
 
 require("dotenv").config();
