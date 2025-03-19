@@ -1,0 +1,33 @@
+{
+  "name": "app-backed",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.8.3",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "framer-motion": "^12.5.0",
+    "jsdom": "^26.0.0",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.9",
+    "openai": "^4.87.3",
+    "puppeteer": "^24.4.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "readability": "^0.1.0",
+    "undici": "^7.4.0",
+    "youtube-caption-extractor": "^1.4.3",
+    "youtube-transcript": "^1.2.1",
+    "ytdl-core": "^4.11.5"
+  }
+}
