@@ -104,10 +104,19 @@ const client = new OpenAI({
     apiKey: sreeApi
 });
 
+const detailedprompt = `Summarize the key points of the provided content clearly and concisely.
+After the summary, create a compelling LinkedIn post that highlights the main insights and encourages engagement, using a professional tone suitable for a business audience. Make sure the post is relatable, informative, and has a call to action to foster discussion.
+
+## Notes
+- Make sure to keep the tone professional yet engaging. 
+- The post should have a good hook for attracting readers.
+- The summary should not exceed 5 sentences.  
+- The LinkedIn post should be concise but comprehensive enough to provoke interest and discussion.`;
+
 // Function to process blog content using AI
 async function processWithAI(content) {
     try {
-        const prompt = "Generate a viral LinkedIn post summarizing this blog."; // Fixed prompt
+        const prompt = detailedprompt; // Fixed prompt
 
         const response = await client.chat.completions.create({
             model: 'gpt-4o',
