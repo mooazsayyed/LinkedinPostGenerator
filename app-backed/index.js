@@ -1,9 +1,7 @@
 const express = require("express");
 const cors = require('cors');
 const axios = require('axios'); // For making HTTP requests to DeepSeek API
-// const DEEPSEEK_API_KEY = 'sk-cd9ee964e00b4aa1b9dd01bb4f4ccdef'; // Replace with your actual API key
-// const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1'; // Replace with the actual API endpoint
-const openai = require('openai'); // Import OpenAI API
+// const openai = require('openai'); // Import OpenAI API
 const app = express();
 const { extractBlogContent, extractYouTubeTranscript, processWithAI, extractBlogContentTest, extractBlogContentSecret } = require("./extractor");
 
@@ -14,12 +12,9 @@ require('dotenv').config(); // Load .env file
 app.use(cors());
 app.use(express.json()); // Ensure JSON request bodies are parsed
 
-console.log("Using OpenAI API Key:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Loaded");
 
-if (!process.env.OPENAI_API_KEY) {
-    console.error("❌ OpenAI API Key is missing!");
-    process.exit(1); // Exit the app if the key is missing
-}
+
+
 const PORT = 3000;
 
 // // Extract & process blog content with AI
@@ -98,7 +93,7 @@ app.post('/process/blog', async (req, res) => {
         const blogContent = await extractBlogContentSecret(url);
         console.log("Extracted blog content:", blogContent);
 
-        console.log("Processing content with OpenAI API...");
+        console.log("Processing content with SREE API...");
         const processedContent = await processWithAI(blogContent); // No prompt argument
         console.log("Processed content:", processedContent);
 

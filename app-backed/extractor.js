@@ -3,17 +3,13 @@ const { Readability } = require("@mozilla/readability");
 const { JSDOM } = require("jsdom");
 const cheerio = require('cheerio');
 const { getSubtitles } = require("youtube-caption-extractor");
-const OpenAI = require("openai");
-const sreeApi = process.env.SREE_API_KEY;
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require("axios");
+const OpenAI = require('openai-api');
 
-
-
-require("dotenv").config();
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+require('dotenv').config();
+const sreeApi = process.env.SREE_API_KEY;
 
 function extractVideoId(url) {
     const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
