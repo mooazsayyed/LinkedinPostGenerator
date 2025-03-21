@@ -6,7 +6,7 @@ const { getSubtitles } = require("youtube-caption-extractor");
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require("axios");
-const OpenAI = require('openai-api');
+const { OpenAI } = require('openai');  // Ensure proper import
 
 require('dotenv').config();
 const sreeApi = process.env.SREE_API_KEY;
@@ -97,44 +97,42 @@ if (!sreeApi) {
 // Initialize OpenAI client
 const client = new OpenAI({
     baseURL: 'https://api.sree.shop/v1',
-    apiKey: sreeApi
+    apiKey: process.env.SREE_API_KEY
 });
 
-const detailedprompt = `Summarize the key points of the provided content clearly and concisely.
-After the summary, create a compelling LinkedIn post that highlights the main insights and encourages engagement, using a professional tone suitable for a business audience. Make sure the post is relatable, informative, and has a call to action to foster discussion.
-
-## Notes
-- Make sure to keep the tone professional yet engaging. 
-- The post should have a good hook for attracting readers.
-- The summary should not exceed 5 sentences.  
-- The LinkedIn post should be concise but comprehensive enough to provoke interest and discussion.`;
+const detailedprompt = `You are an Linkedin expert helping summarize and analyze content and then generate viral linkedin post from it.`;
 
 // Function to process blog content using AI
 async function processWithAI(content) {
     try {
-        const prompt = detailedprompt; // Fixed prompt
+        const detailedprompt = `
+        You are an Linkedin expert helping summarize and analyze content and then generate viral linkedin post from it.`;
+
+        console.log("Sending request to SREE API...");
 
         const response = await client.chat.completions.create({
             model: 'gpt-4o',
             messages: [
                 { role: 'system', content: 'Generate a viral LinkedIn post summarizing this blog.' },
-                { role: 'user', content: `${prompt}\n\nContent:\n${content}` }
+                { role: 'user', content: `${detailedprompt}\n\nContent:\n${content}` }
             ],
             temperature: 0.7
         });
 
-        console.log("AI Response:", JSON.stringify(response, null, 2)); // Debugging
+        console.log("Full Response:", JSON.stringify(response, null, 2));
 
         if (!response.choices || response.choices.length === 0) {
             throw new Error("No response choices from AI.");
         }
 
         return response.choices[0].message.content;
+
     } catch (error) {
         console.error("API Error:", error.response?.data || error.message);
         throw new Error(`Failed to process AI request: ${error.message}`);
     }
 }
+
 
 
 
