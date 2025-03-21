@@ -42,6 +42,7 @@ const PORT = 3000;
 //         res.status(500).json({ error: "Failed to process", details: error.message });
 //     }
 // });
+app.use(express.json());  // Ensure JSON parsing middleware is added
 
 // Extract & process YouTube transcript with AI
 app.post("/process/youtube", async (req, res) => {
@@ -96,98 +97,146 @@ app.post("/process/youtube", async (req, res) => {
 
 
 // Updated /process/blog endpoint
+// Extract & process blog content with AI
 app.post('/process/blog', async (req, res) => {
     try {
+        console.log("📥 Incoming request to /process/blog");
         console.log("Received request:", req.body);
 
-        const { url } = req.body;  // Only accept `url`, no `prompt`
+        const { url } = req.body;
 
         if (!url) {
-            console.error("Missing URL");
+            console.error("❌ Missing URL");
             return res.status(400).json({ error: "Missing URL" });
         }
 
-        console.log("Extracting blog content from URL:", url);
-        const blogContent = await extractBlogContentSecret(url);
-        console.log("Extracted blog content:", blogContent);
+        let content;
 
-        console.log("Processing content with SREE API...");
-        const processedContent = await processWithAI(blogContent); // No prompt argument
-        console.log("Processed content:", processedContent);
+        console.log("🔍 Attempting to extract content with Cheerio...");
 
-        res.json({ success: true, processedContent });
-    } catch (error) {
-        console.error("Error processing request:", error.message);
-        res.status(500).json({ error: "Failed to process", details: error.message });
-    }
-});
-
-
-app.get('/extract/blog', async (req, res) => {
-    try {
-        console.log("Received request for blog extraction:", req.query);
-
-        const { url } = req.query;
-
-        if (!url) {
-            console.error("❌ Missing URL parameter in request");
-            return res.status(400).json({ error: "Missing URL parameter", success: false });
-        }
-
-        console.log("Extracting blog content from URL:", url);
-
-        // Timeout handling
-        const extractionTimeout = setTimeout(() => {
-            console.error(`⏱️ Extraction operation timed out for URL: ${url}`);
-            throw new Error("Extraction operation timed out after 30 seconds");
-        }, 30000);
-
-        let blogContent;
-
-        // ✅ Try Playwright first
         try {
-            blogContent = await extractMediumContent(url);
-            console.log("✅ Successfully extracted with Playwright");
-        } catch (playwrightError) {
-            console.error(`⚠️ Playwright extraction failed: ${playwrightError.message}`);
+            // ✅ Primary method: Cheerio
+            content = await extractContent(url);
+            if (content) {
+                console.log("✅ Content extracted with Cheerio:", content.slice(0, 100) + "...");
+            } else {
+                throw new Error("No content found with Cheerio");
+            }
 
-            // Fallback to cheerio
+        } catch (error) {
+            console.warn("⚠️ Cheerio extraction failed:", error.message);
+
             try {
-                blogContent = await extractContentWithCheerio(url);
-                console.log("✅ Successfully extracted with Cheerio fallback");
-            } catch (cheerioError) {
-                console.error(`❌ Cheerio fallback also failed: ${cheerioError.message}`);
-                throw new Error("Failed to extract content with both Playwright and Cheerio");
+                console.log("🔁 Falling back to Playwright...");
+                content = await extractMediumContent(url);  // Fallback 1
+
+                if (content) {
+                    console.log("✅ Content extracted with Playwright:", content.slice(0, 100) + "...");
+                } else {
+                    throw new Error("No content found with Playwright");
+                }
+
+            } catch (fallbackError) {
+                console.warn("⚠️ Playwright extraction failed:", fallbackError.message);
+
+                console.log("🔁 Trying Puppeteer as last resort...");
+                content = await extractBlogContentSecret(url);  // Fallback 2
+
+                if (!content) {
+                    throw new Error("No content found with any extraction method");
+                }
+
+                console.log("✅ Content extracted with Puppeteer:", content.slice(0, 100) + "...");
             }
         }
 
-        clearTimeout(extractionTimeout);
-
-        if (!blogContent || blogContent.length === 0) {
-            console.error(`⚠️ Empty content extracted from URL: ${url}`);
-            return res.status(422).json({ error: "No content could be extracted from URL", success: false });
+        if (!content) {
+            throw new Error("No content extracted from any method");
         }
 
-        console.log(`✅ Successfully extracted ${blogContent.length} characters of content`);
-        res.json({ success: true, blogContent });
+        console.log("🤖 Processing content with AI...");
+        const processedContent = await processWithAI(content);
+        console.log("✅ AI response received:", processedContent.slice(0, 100) + "...");
+
+        res.json({ success: true, processedContent });
 
     } catch (error) {
-        console.error(`❌ Error processing /extract/blog request for ${req.query.url || 'unknown URL'}`);
-        console.error("Full error:", error);
-
-        // Determine appropriate status code
-        let statusCode = 500;
-        if (error.message.includes("ENOTFOUND") || error.message.includes("404")) {
-            statusCode = 404;
-        } else if (error.message.includes("timeout")) {
-            statusCode = 408;
-        }
-
-        res.status(statusCode).json({
-            error: "Failed to extract blog content",
-            details: error.message,
-            success: false
+        console.error("❌ Error during blog extraction:", error.message);
+        res.status(500).json({
+            error: "Failed to process blog content",
+            details: error.message
         });
     }
 });
+
+
+// Extract & process YouTube transcript with AI
+app.post("/process/youtube", async (req, res) => {
+    const { url } = req.body;
+
+    console.log("📥 Incoming request to /process/youtube");
+    console.log("Received URL:", url);
+
+    if (!url) {
+        console.error("❌ Validation error: Missing YouTube URL");
+        return res.status(400).json({ error: "YouTube URL is required" });
+    }
+
+    try {
+        let content;
+
+        console.log("🔍 Attempting to extract transcript...");
+
+        try {
+            // ✅ Primary method: Extract transcript
+            content = await extractYouTubeTranscript(url);
+            if (content) {
+                console.log("✅ Transcript extracted successfully:", content.slice(0, 100) + "...");
+            } else {
+                throw new Error("No transcript found");
+            }
+
+        } catch (error) {
+            console.warn("⚠️ Transcript extraction failed:", error.message);
+
+            try {
+                console.log("🔁 Falling back to speech-to-text...");
+                content = await convertAudioToText(url);  // Fallback 1 (audio)
+
+                if (content) {
+                    console.log("✅ Audio transcription completed:", content.slice(0, 100) + "...");
+                } else {
+                    throw new Error("No audio content extracted");
+                }
+
+            } catch (fallbackError) {
+                console.warn("⚠️ First audio transcription failed:", fallbackError.message);
+
+                console.log("🔁 Trying secondary fallback...");
+                content = await convertYouTubeAudioToText(url);  // Fallback 2 (secondary audio transcription)
+
+                if (!content) {
+                    throw new Error("No content available from any method");
+                }
+
+                console.log("✅ Secondary audio transcription succeeded:", content.slice(0, 100) + "...");
+            }
+        }
+
+        console.log("🤖 Processing content with AI...");
+        const aiResponse = await processWithAI(content);
+        console.log("✅ AI response received:", aiResponse.slice(0, 100) + "...");
+
+        res.json({ aiResponse });
+
+    } catch (error) {
+        console.error("❌ Error during processing:", error.message);
+        res.status(500).json({
+            error: "Failed to process YouTube content",
+            details: error.message
+        });
+    }
+});
+
+
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

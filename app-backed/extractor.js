@@ -47,38 +47,64 @@ async function extractYouTubeTranscript(url) {
         throw new Error("Transcript not available for this video");
     }
 }
+const ytdlp = require('yt-dlp-exec');
+const { path: ffmpegPath } = require('@ffmpeg-installer/ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
-//Youtbe video to text via audio processing
+const TMP_AUDIO_FILE = '/tmp/audio.mp3';  // Define the temporary audio file path
+
 async function convertYouTubeAudioToText(url) {
-    console.log("🔻 Downloading YouTube audio...");
-    const stream = ytdl(url, { quality: 'lowestaudio' });
+    console.log("🔊 Converting YouTube audio to text...");
 
-    return new Promise((resolve, reject) => {
-        const audioFilePath = TMP_AUDIO_FILE;
+    try {
+        // ✅ Step 1: Use yt-dlp to download audio
+        console.log(`⏬ Downloading audio from ${url}...`);
+        await ytdlp(url, {
+            output: TMP_AUDIO_FILE,
+            format: "bestaudio",
+            extractAudio: true,
+            audioFormat: "mp3"
+        });
 
-        // Convert YouTube audio stream to MP3
-        ffmpeg(stream)
-            .audioCodec('libmp3lame')
-            .audioBitrate(128)
-            .save(audioFilePath)
-            .on('end', async () => {
-                console.log("✅ Audio download complete. Converting to text...");
+        console.log(`✅ Audio saved to ${TMP_AUDIO_FILE}`);
 
-                try {
-                    const text = await convertAudioToText(audioFilePath);
-                    fs.unlinkSync(audioFilePath);  // Clean up temp file
-                    resolve(text);
-                } catch (error) {
-                    fs.unlinkSync(audioFilePath);  // Clean up on error
-                    reject(error);
-                }
-            })
-            .on('error', (error) => {
-                console.error("❌ Audio conversion failed:", error.message);
-                reject(error);
-            });
-    });
+        // ✅ Step 2: Transcribe audio with Google Speech-to-Text
+        const client = new speech.SpeechClient();
+        const audioBytes = fs.readFileSync(TMP_AUDIO_FILE).toString('base64');
+
+        const request = {
+            audio: { content: audioBytes },
+            config: {
+                encoding: 'MP3',
+                sampleRateHertz: 16000,
+                languageCode: 'en-US'
+            }
+        };
+
+        const [response] = await client.recognize(request);
+        const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
+
+        console.log("✅ Transcription completed successfully");
+
+        // ✅ Clean up temporary file
+        fs.unlinkSync(TMP_AUDIO_FILE);  // Delete temporary audio file
+
+        return transcription;
+
+    } catch (error) {
+        console.error("❌ Failed to convert YouTube audio to text:", error.message);
+
+        // Ensure the temporary file is deleted in case of error
+        if (fs.existsSync(TMP_AUDIO_FILE)) {
+            fs.unlinkSync(TMP_AUDIO_FILE);
+        }
+
+        throw new Error("Audio transcription failed");
+    }
 }
+
+
+
 //Using google speect to text api
 async function convertAudioToText(audioFilePath) {
     const audio = {
