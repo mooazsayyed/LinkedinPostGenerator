@@ -7,6 +7,11 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require("axios");
 const { OpenAI } = require('openai');  // Ensure proper import
+const { chromium } = require('playwright');
+const ytdl = require('ytdl-core');  // For downloading audio
+const ffmpeg = require('fluent-ffmpeg');  // For audio processing
+const fs = require('fs');
+const speech = require('@google-cloud/speech');  // Google Speech-to-Text API
 
 require('dotenv').config();
 const sreeApi = process.env.SREE_API_KEY;
@@ -40,6 +45,69 @@ async function extractYouTubeTranscript(url) {
         return subtitles.map((entry) => entry.text).join(" ");
     } catch (error) {
         throw new Error("Transcript not available for this video");
+    }
+}
+
+//Youtbe video to text via audio processing
+async function convertYouTubeAudioToText(url) {
+    console.log("🔻 Downloading YouTube audio...");
+    const stream = ytdl(url, { quality: 'lowestaudio' });
+
+    return new Promise((resolve, reject) => {
+        const audioFilePath = TMP_AUDIO_FILE;
+
+        // Convert YouTube audio stream to MP3
+        ffmpeg(stream)
+            .audioCodec('libmp3lame')
+            .audioBitrate(128)
+            .save(audioFilePath)
+            .on('end', async () => {
+                console.log("✅ Audio download complete. Converting to text...");
+
+                try {
+                    const text = await convertAudioToText(audioFilePath);
+                    fs.unlinkSync(audioFilePath);  // Clean up temp file
+                    resolve(text);
+                } catch (error) {
+                    fs.unlinkSync(audioFilePath);  // Clean up on error
+                    reject(error);
+                }
+            })
+            .on('error', (error) => {
+                console.error("❌ Audio conversion failed:", error.message);
+                reject(error);
+            });
+    });
+}
+//Using google speect to text api
+async function convertAudioToText(audioFilePath) {
+    const audio = {
+        content: fs.readFileSync(audioFilePath).toString('base64'),
+    };
+
+    const config = {
+        encoding: 'MP3',
+        sampleRateHertz: 16000,
+        languageCode: 'en-US',
+    };
+
+    const request = {
+        audio: audio,
+        config: config,
+    };
+
+    try {
+        const [response] = await client.recognize(request);
+        const transcription = response.results
+            .map((result) => result.alternatives[0].transcript)
+            .join(' ');
+
+        console.log("✅ Transcription completed.");
+        return transcription;
+
+    } catch (error) {
+        console.error("❌ Speech-to-Text conversion failed:", error.message);
+        throw new Error("Failed to convert audio to text");
     }
 }
 
@@ -183,5 +251,36 @@ async function extractBlogContentSecret(url) {
     }
 }
 
+async function extractMediumContent(url) {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
 
-module.exports = { extractBlogContent, extractYouTubeTranscript, processWithAI, extractBlogContentTest, extractBlogContentSecret };
+    await page.goto(url, { waitUntil: 'networkidle' });
+
+    // Extract content dynamically
+    const content = await page.evaluate(() => {
+        const article = document.querySelector('article') || document.querySelector('.postArticle-content');
+        return article ? article.innerText.trim() : 'Content not found';
+    });
+
+    await browser.close();
+    return content;
+}
+
+async function extractContent(url) {
+    try {
+        const { data } = await axios.get(url);
+        const $ = cheerio.load(data);
+
+        // Extract article content
+        const content = $('article').text().trim() || $('.postArticle-content').text().trim();
+
+        return content || 'Content not found';
+    } catch (error) {
+        console.error('Error:', error.message);
+        return 'Failed to extract content';
+    }
+}
+
+
+module.exports = { convertYouTubeAudioToText, convertAudioToText, extractYouTubeTranscript, extractContent, extractBlogContent, extractYouTubeTranscript, processWithAI, extractBlogContentTest, extractBlogContentSecret, extractMediumContent };

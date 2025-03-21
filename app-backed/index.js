@@ -3,7 +3,7 @@ const cors = require('cors');
 const axios = require('axios'); // For making HTTP requests to DeepSeek API
 // const openai = require('openai'); // Import OpenAI API
 const app = express();
-const { extractBlogContent, extractYouTubeTranscript, processWithAI, extractBlogContentTest, extractBlogContentSecret } = require("./extractor");
+const { convertYouTubeAudioToText, convertAudioToText, extractContent, extractMediumContent, extractBlogContent, extractYouTubeTranscript, processWithAI, extractBlogContentTest, extractBlogContentSecret } = require("./extractor");
 
 
 require('dotenv').config(); // Load .env file
@@ -47,28 +47,46 @@ const PORT = 3000;
 app.post("/process/youtube", async (req, res) => {
     const { url } = req.body;
 
-    console.log("Incoming request to /process/youtube");
+    console.log("📥 Incoming request to /process/youtube");
     console.log("Received URL:", url);
 
     if (!url) {
-        console.error("Validation error: Missing YouTube URL");
+        console.error("❌ Validation error: Missing YouTube URL");
         return res.status(400).json({ error: "YouTube URL is required" });
     }
 
     try {
-        console.log("Extracting transcript...");
-        const transcript = await extractYouTubeTranscript(url);
-        console.log("Transcript extracted successfully:", transcript ? transcript.slice(0, 100) + "..." : "No transcript found");
+        let content;
 
-        console.log("Processing transcript with AI...");
-        const aiResponse = await processWithAI(transcript);
-        console.log("AI response received successfully:", aiResponse ? aiResponse.slice(0, 100) + "..." : "No AI response");
+        console.log("🔍 Attempting to extract transcript...");
+
+        try {
+            content = await extractYouTubeTranscript(url);  // Primary method (transcript)
+            console.log("✅ Transcript extracted successfully:", content ? content.slice(0, 100) + "..." : "No transcript found");
+
+        } catch (error) {
+            console.warn("⚠️ Transcript extraction failed:", error.message);
+
+            console.log("🔁 Falling back to speech-to-text...");
+            content = await convertYouTubeAudioToText(url);  // Fallback method (audio)
+
+            console.log("✅ Audio transcription completed:", content ? content.slice(0, 100) + "..." : "No content extracted");
+        }
+
+        if (!content) {
+            throw new Error("No content available from transcript or audio");
+        }
+
+        console.log("🤖 Processing content with AI...");
+        const aiResponse = await processWithAI(content);
+        console.log("✅ AI response received:", aiResponse ? aiResponse.slice(0, 100) + "..." : "No AI response");
 
         res.json({ aiResponse });
+
     } catch (error) {
-        console.error("Error during processing:", error);
+        console.error("❌ Error during processing:", error.message);
         res.status(500).json({
-            error: "Failed to process",
+            error: "Failed to process YouTube content",
             details: error.message
         });
     }
@@ -118,34 +136,46 @@ app.get('/extract/blog', async (req, res) => {
 
         console.log("Extracting blog content from URL:", url);
 
-        // Add timeout handling
+        // Timeout handling
         const extractionTimeout = setTimeout(() => {
             console.error(`⏱️ Extraction operation timed out for URL: ${url}`);
             throw new Error("Extraction operation timed out after 30 seconds");
         }, 30000);
 
+        let blogContent;
+
+        // ✅ Try Playwright first
         try {
-            const blogContent = await extractBlogContentSecret(url);
-            clearTimeout(extractionTimeout);
+            blogContent = await extractMediumContent(url);
+            console.log("✅ Successfully extracted with Playwright");
+        } catch (playwrightError) {
+            console.error(`⚠️ Playwright extraction failed: ${playwrightError.message}`);
 
-            if (!blogContent || blogContent.length === 0) {
-                console.error(`⚠️ Empty content extracted from URL: ${url}`);
-                return res.status(422).json({ error: "No content could be extracted from URL", success: false });
+            // Fallback to cheerio
+            try {
+                blogContent = await extractContentWithCheerio(url);
+                console.log("✅ Successfully extracted with Cheerio fallback");
+            } catch (cheerioError) {
+                console.error(`❌ Cheerio fallback also failed: ${cheerioError.message}`);
+                throw new Error("Failed to extract content with both Playwright and Cheerio");
             }
-
-            console.log(`✅ Successfully extracted ${blogContent.length} characters of content`);
-            res.json({ success: true, blogContent });
-        } catch (extractionError) {
-            clearTimeout(extractionTimeout);
-            console.error(`❌ Failed to extract blog content: ${extractionError.message}`);
-            console.error("Extraction error stack:", extractionError.stack);
-            throw extractionError; // Re-throw to be caught by outer try/catch
         }
+
+        clearTimeout(extractionTimeout);
+
+        if (!blogContent || blogContent.length === 0) {
+            console.error(`⚠️ Empty content extracted from URL: ${url}`);
+            return res.status(422).json({ error: "No content could be extracted from URL", success: false });
+        }
+
+        console.log(`✅ Successfully extracted ${blogContent.length} characters of content`);
+        res.json({ success: true, blogContent });
+
     } catch (error) {
         console.error(`❌ Error processing /extract/blog request for ${req.query.url || 'unknown URL'}`);
         console.error("Full error:", error);
 
-        // Determine appropriate status code based on error type
+        // Determine appropriate status code
         let statusCode = 500;
         if (error.message.includes("ENOTFOUND") || error.message.includes("404")) {
             statusCode = 404;
@@ -160,7 +190,4 @@ app.get('/extract/blog', async (req, res) => {
         });
     }
 });
-
-
-
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
