@@ -1,20 +1,83 @@
-import React, { ReactNode, useState } from 'react';
-import { LinkedinIcon, Sparkles, LogIn, LogOut } from 'lucide-react';
+import React, { ReactNode, useState, useEffect } from 'react';
+import { LinkedinIcon, Sparkles, LogIn, LogOut, UserCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AuthForm } from './AuthForm';
+import { supabase } from '../utils/supabaseClient';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // State for login/logout
+  const [showAuth, setShowAuth] = useState(false); // Controls AuthForm modal
+  const [user, setUser] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
-  const handleLoginLogout = () => {
-    setIsLoggedIn(!isLoggedIn); // Toggle login state
+  useEffect(() => {
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user || null);
+    };
+    getSession();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Hide AuthForm on successful login
+  const handleAuthSuccess = () => {
+    setShowAuth(false);
   };
+
+  // Hide AuthForm on close
+  const handleAuthClose = () => {
+    setShowAuth(false);
+  };
+
+  // Handle profile dropdown toggle
+  const handleProfileClick = () => {
+    setShowProfile((prev) => !prev);
+  };
+
+  // Logout handler
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setShowProfile(false);
+  };
+
+  // Hide profile dropdown when clicking outside
+  useEffect(() => {
+    if (!showProfile) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.profile-dropdown')) {
+        setShowProfile(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showProfile]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-100 via-purple-100 to-pink-100">
+      {/* Auth Modal */}
+      {showAuth && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white rounded-lg shadow-lg p-6 relative w-full max-w-sm mx-auto">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-xl"
+              onClick={handleAuthClose}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <AuthForm onSuccess={handleAuthSuccess} />
+          </div>
+        </div>
+      )}
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -48,30 +111,43 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </a>
                 </li>
               </ul>
-              {/* Login/Logout Button */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleLoginLogout}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                {isLoggedIn ? (
-                  <>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Logout
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Login
-                  </>
-                )}
-              </motion.button>
+              {/* Profile or Login Button */}
+              {user ? (
+                <div className="relative profile-dropdown">
+                  <button
+                    className="flex items-center px-3 py-2 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 focus:outline-none"
+                    onClick={handleProfileClick}
+                  >
+                    <UserCircle className="h-7 w-7" />
+                  </button>
+                  {showProfile && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 p-4 z-50">
+                      <div className="text-gray-700 text-sm mb-2">Signed in as</div>
+                      <div className="font-semibold text-gray-900 break-all mb-4">{user.email}</div>
+                      <button
+                        className="w-full flex items-center justify-center px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="h-4 w-4 mr-2" /> Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowAuth(true)}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Login
+                </motion.button>
+              )}
             </nav>
           </div>
         </div>
       </motion.header>
-
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <motion.div
@@ -82,7 +158,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         >
           {children}
         </motion.div>
-
         {/* Features Section */}
         <section id="features" className="mt-16 mb-10">
           <h2 className="text-2xl font-semibold text-gray-800 mb-8 text-center">Features</h2>
@@ -159,7 +234,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </section>
       </main>
-
       {/* Footer */}
       <footer className="border-t border-gray-100/20 py-6 mt-auto bg-white/80 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
@@ -171,3 +245,5 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 };
+
+export default Layout;
