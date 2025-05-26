@@ -19,6 +19,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMsg, setResetMsg] = useState('');
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const session = supabase.auth.getSession();
@@ -32,12 +33,16 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       // Handle successful OAuth login
       if (event === 'SIGNED_IN' && session?.user) {
         setLinkedinLoading(false);
+        console.log('User signed in:', session.user); // Debug log
+        console.log('User metadata:', session.user.user_metadata); // Debug log
+        upsertProfilePicture(session.user);
         if (onSuccess) onSuccess();
       }
       
       // Handle sign out
       if (event === 'SIGNED_OUT') {
         setLinkedinLoading(false);
+        setImageError(false); // Reset image error on sign out
       }
     });
     
@@ -87,7 +92,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'linkedin_oidc',
         options: {
-          redirectTo: window.location.origin, // Redirects back to your current page (localhost:5173 in dev)
+          redirectTo: window.location.origin,
           scopes: 'openid profile email'
         }
       });
@@ -96,7 +101,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         setError(error.message);
         setLinkedinLoading(false);
       }
-      // Loading state will be handled by onAuthStateChange
     } catch (error) {
       console.error('LinkedIn sign-in error:', error);
       setError('Failed to sign in with LinkedIn');
@@ -124,33 +128,107 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
     setResetLoading(false);
   };
 
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const getProfilePicture = () => {
+    // Try multiple sources for profile picture
+    const sources = [
+      user?.user_metadata?.avatar_url,
+      user?.user_metadata?.picture,
+      user?.user_metadata?.profile_pic_url
+    ].filter(Boolean);
+
+    return sources[0] || null;
+  };
+
+  const getDisplayName = () => {
+    return user?.user_metadata?.full_name || 
+           user?.user_metadata?.name || 
+           user?.email?.split('@')[0] || 
+           'User';
+  };
+
+  const getProviderName = () => {
+    const provider = user?.app_metadata?.provider;
+    if (provider === 'linkedin_oidc') return 'LinkedIn';
+    if (provider) return provider.replace('_', ' ');
+    return 'Email';
+  };
+
+  const upsertProfilePicture = async (user) => {
+    const avatarUrl =
+      user.user_metadata?.avatar_url ||
+      user.user_metadata?.picture ||
+      user.user_metadata?.profile_pic_url ||
+      null;
+
+    if (!avatarUrl) return;
+
+    // Upsert into your 'profiles' table
+    await supabase
+      .from('profiles')
+      .upsert([
+        { id: user.id, avatar_url: avatarUrl }
+      ]);
+  };
+
   if (user) {
+    const profilePicture = getProfilePicture();
+    const displayName = getDisplayName();
+    const providerName = getProviderName();
+
     return (
       <div className="flex flex-col items-center space-y-4 p-4">
         <div className="flex items-center space-x-3">
-          {user.user_metadata?.avatar_url && (
-            <img 
-              src={user.user_metadata.avatar_url} 
-              alt="Profile" 
-              className="w-10 h-10 rounded-full"
-            />
-          )}
-          <div>
-            <div className="text-gray-700">
-              <b>{user.user_metadata?.full_name || user.email}</b>
+          {profilePicture && !imageError ? (
+            <div className="relative">
+              <img 
+                src={profilePicture} 
+                alt="Profile" 
+                className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
+                onError={handleImageError}
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+              />
+              {/* Loading indicator overlay while image loads */}
+              <div className="absolute inset-0 bg-gray-200 rounded-full animate-pulse opacity-0"></div>
             </div>
-            {user.user_metadata?.full_name && (
-              <div className="text-sm text-gray-500">{user.email}</div>
-            )}
-            {user.app_metadata?.provider && (
-              <div className="text-xs text-gray-400 capitalize">
-                via {user.app_metadata.provider.replace('_', ' ')}
-              </div>
-            )}
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="text-left">
+            <div className="text-gray-800 font-semibold">
+              {displayName}
+            </div>
+            <div className="text-sm text-gray-600">{user.email}</div>
+            <div className="text-xs text-gray-400 capitalize">
+              via {providerName}
+            </div>
           </div>
         </div>
+        
+        {/* Debug info - remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <details className="text-xs text-gray-500 max-w-sm">
+            <summary className="cursor-pointer">Debug Info</summary>
+            <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+              {JSON.stringify({
+                provider: user?.app_metadata?.provider,
+                avatar_url: user?.user_metadata?.avatar_url,
+                picture: user?.user_metadata?.picture,
+                full_name: user?.user_metadata?.full_name,
+                name: user?.user_metadata?.name,
+              }, null, 2)}
+            </pre>
+          </details>
+        )}
+        
         <button
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+          className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
           onClick={handleLogout}
           disabled={loading}
         >
@@ -277,3 +355,74 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
     </div>
   );
 };
+
+
+
+
+const fetchLinkedInProfile = async (accessToken: string) => {
+  try {
+    const res = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!res.ok) throw new Error('Failed to fetch LinkedIn profile');
+
+    const data = await res.json();
+    return data?.picture || null;
+  } catch (err) {
+    console.error('Error fetching LinkedIn profile:', err);
+    return null;
+  }
+};
+
+const LinkedInProfile = () => {
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadLinkedInProfilePic = async () => {
+      const { data: sessionData, error } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+
+      if (error || !session) {
+        console.log('No session or error:', error);
+        return;
+      }
+
+      const provider = session.user?.app_metadata?.provider;
+      const accessToken = session.provider_token;
+
+      if (provider === 'linkedin' && accessToken) {
+        const pic = await fetchLinkedInProfile(accessToken);
+        if (pic) {
+          setProfilePicture(pic);
+
+          // Optional: Update profile in Supabase DB
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: pic })
+            .eq('id', session.user.id);
+        }
+      }
+    };
+
+    loadLinkedInProfilePic();
+  }, []);
+
+  return (
+    <div>
+      {profilePicture ? (
+        <img
+          src={profilePicture}
+          alt="LinkedIn Profile"
+          className="w-20 h-20 rounded-full"
+        />
+      ) : (
+        <p>Loading profile picture...</p>
+      )}
+    </div>
+  );
+};
+
+export default LinkedInProfile;

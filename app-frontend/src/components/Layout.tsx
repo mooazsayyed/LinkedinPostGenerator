@@ -3,8 +3,8 @@ import { LinkedinIcon, Sparkles, LogIn, LogOut, UserCircle } from 'lucide-react'
 import { motion } from 'framer-motion';
 import { AuthForm } from './AuthForm';
 import { supabase } from '../utils/supabaseClient';
-import { LinkedInLogin } from './LinkedInLogin';
-import { LINKEDIN_CONFIG } from '../config/linkedin';
+// import { LinkedInLogin } from './LinkedInLogin';
+// import { LINKEDIN_CONFIG } from '../config/linkedin';
 
 interface LayoutProps {
   children: ReactNode;
@@ -117,10 +117,23 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               {user ? (
                 <div className="relative profile-dropdown">
                   <button
-                    className="flex items-center px-3 py-2 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 focus:outline-none"
+                    className="flex items-center px-3 py-2 text-blue-700 rounded-full hover:bg-blue-200 focus:outline-none"
                     onClick={handleProfileClick}
                   >
-                    <UserCircle className="h-7 w-7" />
+                    {(() => {
+                      const profilePic = user.user_metadata?.avatar_url || user.user_metadata?.picture || user.user_metadata?.profile_pic_url;
+                      if (profilePic) {
+                        return (
+                          <img
+                            src={profilePic}
+                            alt="Profile"
+                            className="h-7 w-7 rounded-full object-cover"
+                            onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = ''; }}
+                          />
+                        );
+                      }
+                      return <UserCircle className="h-7 w-7" />;
+                    })()}
                   </button>
                   {showProfile && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 p-4 z-50">
