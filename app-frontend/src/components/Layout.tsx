@@ -3,6 +3,8 @@ import { LinkedinIcon, Sparkles, LogIn, LogOut, UserCircle } from 'lucide-react'
 import { motion } from 'framer-motion';
 import { AuthForm } from './AuthForm';
 import { supabase } from '../utils/supabaseClient';
+import { LinkedInLogin } from './LinkedInLogin';
+import { LINKEDIN_CONFIG } from '../config/linkedin';
 
 interface LayoutProps {
   children: ReactNode;
@@ -134,15 +136,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   )}
                 </div>
               ) : (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowAuth(true)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Login
-                </motion.button>
+                <div className="flex items-center space-x-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAuth(true)}
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Login
+                  </motion.button>
+                </div>
               )}
             </nav>
           </div>

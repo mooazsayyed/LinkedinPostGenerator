@@ -107,12 +107,12 @@ export const LinkedInPostGenerator: React.FC = () => {
     return (
         <div className="max-w-3xl mx-auto space-y-8">
             <InputSection
-                inputType={"blog"} // ignored
-                setInputType={() => {}} // ignored
+                inputType={"blog"}
+                setInputType={() => {}}
                 inputUrl={inputUrl}
                 setInputUrl={setInputUrl}
-                inputContent={""} // ignored
-                setInputContent={() => {}} // ignored
+                inputContent={""}
+                setInputContent={() => {}}
                 generatedContent={linkedInPosts.length > 0 ? linkedInPosts[0].content : ''}
                 isLoading={isLoading}
                 onGenerate={handleGenerate}
