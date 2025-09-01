@@ -8,3 +8,6 @@ Firecrawl and cheerio for blog extraction
 youtube-transcript npm package for youtube transcrciption
 
 Auth is handled using supabase
+
+
+NOTE - AWS eks deployment is on hold
